@@ -356,7 +356,9 @@ class PlayerController extends ChangeNotifier {
     if (audioPlayback == null || path == null || path.isEmpty) return;
     try {
       await audioPlayback.load(currentTrack);
-      unawaited(audioPlayback.setPitch(pitchShift));
+      if (pitchShift != 0) {
+        unawaited(audioPlayback.setPitch(pitchShift));
+      }
       _loadedTrackId = currentTrack.id;
       final savedPosition = currentQueue.position;
       if (savedPosition > Duration.zero) {

@@ -178,6 +178,7 @@ class _FrontendScreenState extends State<FrontendScreen> {
                 'duration': track.duration.inSeconds,
                 'filePath': track.filePath,
                 'artworkB64': artB64,
+                'embeddedLyrics': track.embeddedLyrics,
                 'c1': '#$r$g$b',
                 'c2': '#$b$g$r',
               };
@@ -203,6 +204,7 @@ class _FrontendScreenState extends State<FrontendScreen> {
                     'genre': track.genre,
                     'duration': track.duration.inSeconds,
                     'filePath': track.filePath,
+                    'embeddedLyrics': track.embeddedLyrics,
                     'c1': '#$r$g$b',
                     'c2': '#$b$g$r',
                   };

@@ -1,6 +1,6 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
-import { copyFileSync, mkdirSync } from "fs";
+import { copyFileSync, mkdirSync, readdirSync, statSync } from "fs";
 import { resolve } from "path";
 
 const copyToFlutterAssets = {
@@ -9,6 +9,16 @@ const copyToFlutterAssets = {
     const dest = resolve(__dirname, "../assets/web");
     mkdirSync(`${dest}/assets`, { recursive: true });
     copyFileSync(resolve(__dirname, "dist/assets/musicplaya.js"), `${dest}/assets/musicplaya.js`);
+    const modelsSource = resolve(__dirname, "public/assets/3d");
+    const modelsDest = `${dest}/assets/3d`;
+    if (statSync(modelsSource, { throwIfNoEntry: false })?.isDirectory()) {
+      mkdirSync(modelsDest, { recursive: true });
+      for (const file of readdirSync(modelsSource)) {
+        if (file.endsWith(".glb") || file.endsWith(".gltf")) {
+          copyFileSync(`${modelsSource}/${file}`, `${modelsDest}/${file}`);
+        }
+      }
+    }
     // index.html: script at end of body (not in head) so #root exists when JS runs
     const html = `<!doctype html>\n<html lang="ko">\n  <head>\n    <meta charset="UTF-8" />\n    <meta name="viewport" content="width=device-width, initial-scale=1.0" />\n    <title>Music Playa</title>\n  </head>\n  <body>\n    <div id="root"></div>\n    <script src="./assets/musicplaya.js"></script>\n  </body>\n</html>\n`;
     require("fs").writeFileSync(`${dest}/index.html`, html);
