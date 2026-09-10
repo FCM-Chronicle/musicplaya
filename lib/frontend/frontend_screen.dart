@@ -89,6 +89,8 @@ class _FrontendScreenState extends State<FrontendScreen> {
         widget.player.selectQueue(payload['index'] as int? ?? 0);
       case 'scanEntireDevice':
         widget.player.scanEntireDevice();
+      case 'pickFolder':
+        widget.player.pickFolder();
       case 'seek':
         final pos = payload['position'] as num?;
         if (pos != null) widget.player.seek(Duration(seconds: pos.toInt()));

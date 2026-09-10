@@ -1,9 +1,11 @@
 import 'dart:async';
 import 'dart:math';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:just_audio/just_audio.dart';
 
 import '../library/audio_file_scanner.dart';
@@ -99,15 +101,21 @@ class PlayerController extends ChangeNotifier {
     bool hasPermission = false;
 
     if (defaultTargetPlatform == TargetPlatform.android) {
-      // Android 13+ → READ_MEDIA_AUDIO
-      // Android 12 이하 → READ_EXTERNAL_STORAGE
+      // 1. Android 11+ 모든 파일 관리 권한(SD 카드 탐색 필수) 확인
+      if (await Permission.manageExternalStorage.isGranted) {
+        hasPermission = true;
+      } else {
+        final manageStatus = await Permission.manageExternalStorage.request();
+        if (manageStatus.isGranted) hasPermission = true;
+      }
+
+      // 2. 미디어 오디오 / 저장소 권한 요청 (fallback)
       final audioStatus = await Permission.audio.request();
       if (audioStatus.isGranted) {
         hasPermission = true;
       } else {
-        // Android 12 이하 fallback
         final storageStatus = await Permission.storage.request();
-        hasPermission = storageStatus.isGranted;
+        if (storageStatus.isGranted) hasPermission = true;
       }
     } else {
       hasPermission = await Permission.storage.request().isGranted;
@@ -131,16 +139,56 @@ class PlayerController extends ChangeNotifier {
 
     if (result.tracks.isEmpty) return;
 
-    // 스캔 성공 시 데모/더미 큐 모두 제거하고 실제 라이브러리로 교체
-    final libraryQueue = PlaybackQueue(
-      id: 'local-library',
-      name: '내 기기 음악',
-      tracks: result.tracks,
-    );
-    queues
-      ..removeWhere((q) => q.id == 'local-library' || q.id == 'late-night' || q.id == 'focus' || q.id == 'context')
-      ..insert(0, libraryQueue);
-    selectedQueueIndex = 0;
+    _mergeScannedTracks(result.tracks);
+  }
+
+  Future<void> pickFolder() async {
+    try {
+      final selectedDirectory = await FilePicker.getDirectoryPath(
+        dialogTitle: '음악이 있는 폴더나 SD 카드를 선택하세요',
+      );
+      if (selectedDirectory == null || selectedDirectory.isEmpty) return;
+      debugPrint('[Scanner] Picked folder: $selectedDirectory');
+      await scanPath(selectedDirectory);
+    } catch (e) {
+      debugPrint('[Scanner] pickFolder error: $e');
+    }
+  }
+
+  Future<void> scanPath(String path) async {
+    final dir = Directory(path);
+    if (!await dir.exists()) return;
+    debugPrint('[Scanner] Scanning folder: $path');
+    final result = await _scanner.scan(path);
+    debugPrint('[Scanner] Found ${result.tracks.length} tracks in $path');
+    if (result.tracks.isEmpty) return;
+    _mergeScannedTracks(result.tracks);
+  }
+
+  void _mergeScannedTracks(List<Track> newTracks) {
+    final existingIdx = queues.indexWhere((q) => q.id == 'local-library');
+    if (existingIdx >= 0) {
+      final currentTracks = queues[existingIdx].tracks;
+      final existingPaths = currentTracks.map((t) => t.filePath ?? t.id).toSet();
+      final toAdd = newTracks.where((t) => !existingPaths.contains(t.filePath ?? t.id)).toList();
+      final merged = [...currentTracks, ...toAdd]
+        ..sort((a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));
+      queues[existingIdx] = PlaybackQueue(
+        id: 'local-library',
+        name: '내 기기 음악',
+        tracks: merged,
+      );
+    } else {
+      final libraryQueue = PlaybackQueue(
+        id: 'local-library',
+        name: '내 기기 음악',
+        tracks: newTracks,
+      );
+      queues
+        ..removeWhere((q) => q.id == 'late-night' || q.id == 'focus' || q.id == 'context')
+        ..insert(0, libraryQueue);
+      selectedQueueIndex = 0;
+    }
     _changed();
   }
 
@@ -306,15 +354,21 @@ class PlayerController extends ChangeNotifier {
     final audioPlayback = playback;
     final path = currentTrack.filePath;
     if (audioPlayback == null || path == null || path.isEmpty) return;
-    await audioPlayback.load(currentTrack);
-    unawaited(audioPlayback.setPitch(pitchShift));
-    _loadedTrackId = currentTrack.id;
-    final savedPosition = currentQueue.position;
-    if (savedPosition > Duration.zero) {
-      await audioPlayback.seek(savedPosition);
-    }
-    if (isPlaying) {
-      await audioPlayback.play();
+    try {
+      await audioPlayback.load(currentTrack);
+      unawaited(audioPlayback.setPitch(pitchShift));
+      _loadedTrackId = currentTrack.id;
+      final savedPosition = currentQueue.position;
+      if (savedPosition > Duration.zero) {
+        await audioPlayback.seek(savedPosition);
+      }
+      if (isPlaying) {
+        await audioPlayback.play();
+      }
+    } catch (e) {
+      debugPrint('[Player] Audio load/play error for ${currentTrack.filePath}: $e');
+      isPlaying = false;
+      _changed();
     }
   }
 

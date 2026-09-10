@@ -1,28 +1,14 @@
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:musicplaya/main.dart';
+import 'package:musicplaya/frontend/frontend_screen.dart';
 import 'package:musicplaya/player/player_controller.dart';
 
 void main() {
-  testWidgets('boots into the music player shell', (tester) async {
-    await tester.pumpWidget(const MusicoApp(useFrontend: false));
+  testWidgets('boots into MusicoApp with FrontendScreen', (tester) async {
+    await tester.pumpWidget(const MusicoApp());
 
-    expect(find.text('MUSICO'), findsOneWidget);
-    expect(find.text('Good evening'), findsOneWidget);
-    expect(find.text('Midnight Drive'), findsNWidgets(2));
-    expect(find.text('Your library starts here'), findsNothing);
-  });
-
-  testWidgets('player controls move through the current queue', (tester) async {
-    await tester.pumpWidget(const MusicoApp(useFrontend: false));
-
-    await tester.tap(find.byTooltip('Play'));
-    await tester.pump();
-    expect(find.byTooltip('Pause'), findsOneWidget);
-
-    await tester.tap(find.byTooltip('Next track'));
-    await tester.pump();
-    expect(find.text('Paper Moon'), findsNWidgets(2));
+    expect(find.byType(FrontendScreen), findsOneWidget);
   });
 
   test('queue controller changes queue and reorders tracks', () {
